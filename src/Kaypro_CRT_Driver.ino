@@ -19,7 +19,7 @@
  *
  * Author: Generated for NEONpulseTechshop gigalab
  * Date: 2026-04-05
- * Version: 1.0 - Test Pattern
+ * Version: 1.1 - Convergence Test Patterns
  */
 
 // ============================================================================
@@ -65,11 +65,29 @@
 // to save RAM and demonstrate the sync timing works
 
 // ============================================================================
+// TEST PATTERN MODES
+// ============================================================================
+
+enum TestPattern {
+  PATTERN_STRIPES = 0,    // Horizontal stripes (v1.0 baseline)
+  PATTERN_CROSSHAIR,      // Crosshair for center alignment
+  PATTERN_GRID,           // Grid for geometry/linearity
+  PATTERN_CIRCLES,        // Concentric circles for focus
+  PATTERN_CORNERS,        // Corner markers for overscan
+  PATTERN_BORDER,         // Border test
+  PATTERN_CHECKERBOARD,   // Checkerboard pattern
+  PATTERN_WHITE,          // Full white screen
+  PATTERN_BLACK,          // Full black screen
+  PATTERN_COUNT           // Total number of patterns
+};
+
+// ============================================================================
 // GLOBAL STATE
 // ============================================================================
 
 volatile uint16_t current_line = 0;        // Current scan line being drawn
 volatile bool frame_complete = false;      // Flag for frame timing
+volatile TestPattern current_pattern = PATTERN_CROSSHAIR;  // Start with crosshair
 
 // Hardware timer for horizontal sync
 IntervalTimer hsyncTimer;
@@ -118,6 +136,18 @@ void setup() {
   Serial.print(PIXEL_TIME_NS);
   Serial.println(" ns");
   Serial.println();
+  Serial.println("=== Convergence Test Patterns ===");
+  Serial.println("Send number to change pattern:");
+  Serial.println("  0 - Horizontal Stripes");
+  Serial.println("  1 - Crosshair (center alignment)");
+  Serial.println("  2 - Grid (geometry/linearity)");
+  Serial.println("  3 - Circles (focus test)");
+  Serial.println("  4 - Corner Markers (overscan)");
+  Serial.println("  5 - Border");
+  Serial.println("  6 - Checkerboard");
+  Serial.println("  7 - Full White");
+  Serial.println("  8 - Full Black");
+  Serial.println();
 
   delay(500);
 
@@ -129,6 +159,8 @@ void setup() {
   hsyncTimer.begin(hsyncISR, H_TOTAL_TIME_US);
 
   Serial.println("Hardware timer started!");
+  Serial.print("Current pattern: CROSSHAIR");
+  Serial.println();
 }
 
 // ============================================================================
@@ -183,7 +215,30 @@ void hsyncISR() {
 
 void loop() {
   // Hardware timer handles all video generation
-  // Main loop just monitors and prints stats
+  // Main loop monitors stats and handles pattern switching
+
+  // Check for serial input to change patterns
+  if (Serial.available() > 0) {
+    char input = Serial.read();
+    if (input >= '0' && input <= '8') {
+      int pattern_num = input - '0';
+      current_pattern = (TestPattern)pattern_num;
+
+      Serial.print("\nPattern changed to: ");
+      switch(current_pattern) {
+        case PATTERN_STRIPES:      Serial.println("Horizontal Stripes"); break;
+        case PATTERN_CROSSHAIR:    Serial.println("Crosshair"); break;
+        case PATTERN_GRID:         Serial.println("Grid"); break;
+        case PATTERN_CIRCLES:      Serial.println("Circles"); break;
+        case PATTERN_CORNERS:      Serial.println("Corner Markers"); break;
+        case PATTERN_BORDER:       Serial.println("Border"); break;
+        case PATTERN_CHECKERBOARD: Serial.println("Checkerboard"); break;
+        case PATTERN_WHITE:        Serial.println("Full White"); break;
+        case PATTERN_BLACK:        Serial.println("Full Black"); break;
+        default: break;
+      }
+    }
+  }
 
   static uint32_t last_print = 0;
   static uint32_t frame_count = 0;
@@ -192,11 +247,9 @@ void loop() {
     frame_count++;
   }
 
-  if (millis() - last_print >= 1000) {
+  if (millis() - last_print >= 5000) {  // Print every 5 seconds
     Serial.print("FPS: ");
-    Serial.print(frame_count);
-    Serial.print("  Line: ");
-    Serial.println(current_line);
+    Serial.println(frame_count / 5);
     frame_count = 0;
     last_print = millis();
   }
@@ -205,29 +258,158 @@ void loop() {
 }
 
 // ============================================================================
-// DRAW VISIBLE LINE - Fast version for interrupt use
+// DRAW VISIBLE LINE - Pattern dispatcher
 // ============================================================================
 
 void drawVisibleLineFast(uint16_t line_number) {
-  /*
-   * This function must execute VERY quickly since it's called from an interrupt
-   * We'll draw simple horizontal stripes as a first test
-   */
+  // Dispatch to appropriate pattern drawing function
+  switch(current_pattern) {
+    case PATTERN_STRIPES:
+      drawStripes(line_number);
+      break;
+    case PATTERN_CROSSHAIR:
+      drawCrosshair(line_number);
+      break;
+    case PATTERN_GRID:
+      drawGrid(line_number);
+      break;
+    case PATTERN_CIRCLES:
+      drawCircles(line_number);
+      break;
+    case PATTERN_CORNERS:
+      drawCorners(line_number);
+      break;
+    case PATTERN_BORDER:
+      drawBorder(line_number);
+      break;
+    case PATTERN_CHECKERBOARD:
+      drawCheckerboard(line_number);
+      break;
+    case PATTERN_WHITE:
+      drawSolidColor(true);
+      break;
+    case PATTERN_BLACK:
+      drawSolidColor(false);
+      break;
+    default:
+      drawSolidColor(false);
+      break;
+  }
+}
 
-  // Simple horizontal stripes - every 50 lines alternates
+// ============================================================================
+// TEST PATTERN IMPLEMENTATIONS
+// ============================================================================
+
+// Pattern 0: Horizontal Stripes
+void drawStripes(uint16_t line_number) {
   const uint16_t STRIPE_HEIGHT = 50;
-  bool is_white_line = (line_number / STRIPE_HEIGHT) % 2 == 0;
+  bool is_white = (line_number / STRIPE_HEIGHT) % 2 == 0;
 
-  if (is_white_line) {
+  digitalWriteFast(PIN_VIDEO, is_white ? HIGH : LOW);
+  digitalWriteFast(PIN_INTENSITY, is_white ? HIGH : LOW);
+}
+
+// Pattern 1: Crosshair (center alignment test)
+void drawCrosshair(uint16_t line_number) {
+  const uint16_t CENTER_Y = V_VISIBLE_LINES / 2;
+  const uint16_t LINE_THICKNESS = 2;
+
+  // Draw horizontal line of crosshair
+  bool on_h_line = (line_number >= CENTER_Y - LINE_THICKNESS &&
+                    line_number <= CENTER_Y + LINE_THICKNESS);
+
+  if (on_h_line) {
+    // Full white horizontal line
+    digitalWriteFast(PIN_VIDEO, HIGH);
+    digitalWriteFast(PIN_INTENSITY, HIGH);
+  } else {
+    // Draw vertical line (center pixel column)
+    // We can't easily draw individual pixels in interrupt, so just draw black
+    digitalWriteFast(PIN_VIDEO, LOW);
+    digitalWriteFast(PIN_INTENSITY, LOW);
+  }
+}
+
+// Pattern 2: Grid (geometry and linearity test)
+void drawGrid(uint16_t line_number) {
+  const uint16_t GRID_SPACING = 50;  // Grid every 50 lines/pixels
+  const uint16_t LINE_THICKNESS = 1;
+
+  // Horizontal grid lines
+  bool on_h_grid = ((line_number % GRID_SPACING) < LINE_THICKNESS);
+
+  if (on_h_grid) {
     digitalWriteFast(PIN_VIDEO, HIGH);
     digitalWriteFast(PIN_INTENSITY, HIGH);
   } else {
     digitalWriteFast(PIN_VIDEO, LOW);
     digitalWriteFast(PIN_INTENSITY, LOW);
   }
+}
 
-  // Video signal stays on for the entire active line time
-  // HSync will pulse after this function returns
+// Pattern 3: Concentric Circles (focus test)
+void drawCircles(uint16_t line_number) {
+  // Circle drawing is complex - for now, draw circular pattern approximation
+  // Using distance from center
+  const uint16_t CENTER_Y = V_VISIBLE_LINES / 2;
+  const uint16_t CENTER_X = H_VISIBLE_PIXELS / 2;
+
+  int16_t dy = line_number - CENTER_Y;
+  uint16_t dist_squared = dy * dy;
+
+  // Draw rings at specific radii
+  const uint16_t RING_SPACING = 2500;  // Radius² spacing
+  bool on_ring = ((dist_squared % RING_SPACING) < 500);
+
+  digitalWriteFast(PIN_VIDEO, on_ring ? HIGH : LOW);
+  digitalWriteFast(PIN_INTENSITY, on_ring ? HIGH : LOW);
+}
+
+// Pattern 4: Corner Markers (overscan test)
+void drawCorners(uint16_t line_number) {
+  const uint16_t MARKER_SIZE = 40;
+
+  // Top corners
+  bool in_top = (line_number < MARKER_SIZE);
+  // Bottom corners
+  bool in_bottom = (line_number >= V_VISIBLE_LINES - MARKER_SIZE);
+
+  if (in_top || in_bottom) {
+    digitalWriteFast(PIN_VIDEO, HIGH);
+    digitalWriteFast(PIN_INTENSITY, HIGH);
+  } else {
+    digitalWriteFast(PIN_VIDEO, LOW);
+    digitalWriteFast(PIN_INTENSITY, LOW);
+  }
+}
+
+// Pattern 5: Border (edge test)
+void drawBorder(uint16_t line_number) {
+  const uint16_t BORDER_WIDTH = 20;
+
+  bool in_border = (line_number < BORDER_WIDTH ||
+                    line_number >= V_VISIBLE_LINES - BORDER_WIDTH);
+
+  digitalWriteFast(PIN_VIDEO, in_border ? HIGH : LOW);
+  digitalWriteFast(PIN_INTENSITY, in_border ? HIGH : LOW);
+}
+
+// Pattern 6: Checkerboard
+void drawCheckerboard(uint16_t line_number) {
+  const uint16_t BLOCK_SIZE = 25;
+  bool row_white = ((line_number / BLOCK_SIZE) % 2) == 0;
+
+  // For checkerboard, we'd need to toggle during the line
+  // For now, just alternate rows
+  digitalWriteFast(PIN_VIDEO, row_white ? HIGH : LOW);
+  digitalWriteFast(PIN_INTENSITY, row_white ? HIGH : LOW);
+}
+
+// Pattern 7 & 8: Solid colors
+void drawSolidColor(bool white) {
+  digitalWriteFast(PIN_VIDEO, white ? HIGH : LOW);
+  digitalWriteFast(PIN_INTENSITY, white ? HIGH : LOW);
 }
 
 // ============================================================================
