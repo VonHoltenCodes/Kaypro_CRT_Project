@@ -8,14 +8,21 @@
  * - Horizontal Frequency: 18.432 kHz (54.25 µs per line)
  * - Vertical Frequency: 50 Hz (20 ms per frame)
  * - Resolution: 720 × 350 pixels
- * - Signal Level: TTL (3.3V from Teensy, monitor expects 5V but may work)
+ * - Signal Level: TTL (5V standard)
+ *
+ * IMPORTANT VOLTAGE NOTE:
+ * - Teensy 4.1 outputs 3.3V logic
+ * - Monitor expects 5V TTL signals
+ * - Currently works but with flicker/reduced brightness
+ * - RECOMMENDED: Use SN74LS245N octal bus transceiver for level shifting
+ *   (3.3V→5V conversion for clean, stable video)
  *
  * Hardware Connections (DB-9 Female on Monitor):
  * - GND         → Pin 1 (or Pin 2)  - Ground
- * - Teensy Pin 2 → Pin 7            - Video Signal
- * - Teensy Pin 3 → Pin 6            - Intensity (brighter pixels)
- * - Teensy Pin 4 → Pin 8            - Horizontal Sync (positive polarity)
- * - Teensy Pin 5 → Pin 9            - Vertical Sync (negative polarity)
+ * - Teensy Pin 2 → Pin 7            - Video Signal (3.3V, needs 5V)
+ * - Teensy Pin 3 → Pin 6            - Intensity (3.3V, needs 5V)
+ * - Teensy Pin 4 → Pin 8            - Horizontal Sync (3.3V, needs 5V)
+ * - Teensy Pin 5 → Pin 9            - Vertical Sync (3.3V, needs 5V)
  *
  * Author: Generated for NEONpulseTechshop gigalab
  * Date: 2026-04-05

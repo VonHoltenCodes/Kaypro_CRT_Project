@@ -22,6 +22,12 @@ This project enables you to drive a **Kaypro KP-1254G** 12-inch green phosphor C
 - **CPU:** ARM Cortex-M7 @ 600 MHz
 - **Why Teensy:** Precise hardware timers for stable sync signals
 
+### Level Shifter (Recommended)
+- **Part:** SN74LS245N Octal Bus Transceiver
+- **Purpose:** Converts Teensy 3.3V logic to monitor's 5V TTL levels
+- **Note:** Direct 3.3V connection works but causes flicker/reduced brightness
+- **Wiring:** 3.3V input side, 5V output side to monitor
+
 ## Connections
 
 | Teensy Pin | Monitor DB-9 Pin | Signal          |
@@ -58,6 +64,15 @@ pio run --target upload   # Upload (press Teensy button when prompted)
 
 ## Version History
 
+### v1.1 - Convergence Test Patterns (2026-04-05)
+- 9 selectable test patterns (serial controlled)
+- Crosshair for center alignment
+- Grid for geometry/linearity testing
+- Circles for focus adjustment
+- Corner markers for overscan testing
+- Border, checkerboard, and solid patterns
+- Pattern switching via serial (send 0-8)
+
 ### v1.0 - Initial Release (2026-04-05)
 - Hardware timer-based horizontal sync (18.432 kHz)
 - Stable vertical sync (50 Hz)
@@ -79,7 +94,7 @@ Video is generated line-by-line in the timer interrupt. Currently produces simpl
 ## Roadmap
 
 - [x] v1.0 - Basic sync and test patterns
-- [ ] v1.1 - Convergence test patterns (crosshair, grid, circles)
+- [x] v1.1 - Convergence test patterns (crosshair, grid, circles)
 - [ ] v1.2 - Bitmap font text rendering engine
 - [ ] v1.3 - ASCII art displays
 - [ ] v2.0 - Serial communication for live data
