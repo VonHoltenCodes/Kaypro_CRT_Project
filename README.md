@@ -9,9 +9,11 @@ Drive vintage 1980s Kaypro monochrome CRT monitors with modern microcontrollers.
 
 - ✅ **Stable Sync Signals** - Hardware timer-based 18.432 kHz horizontal / 50 Hz vertical sync
 - ✅ **10 Test Patterns** - Convergence tools including crosshair, grid, circles, corners, borders
-- ✅ **Text Rendering Engine** - 8×8 bitmap font with 95 printable ASCII characters
+- ✅ **TEXT RENDERING WORKING!** - Blocky but readable text on vintage CRT
+- ✅ **8×8 Bitmap Font** - 95 printable ASCII characters
 - ✅ **Serial Control** - Switch patterns via USB serial commands
-- ✅ **High Performance** - Runs on Teensy 4.1 @ 600 MHz for precise timing
+- ✅ **Level Shifted Signals** - Clean 5V TTL via SN74LS245N
+- ⚠️ **Partial Resolution** - 270 pixels/line achieved (full 720 not possible in ISR)
 
 ## Gallery
 
@@ -137,14 +139,40 @@ Vertical:
 
 ### Text Rendering Architecture
 
-**v1.2 Status:** Text infrastructure complete, pixel-level rendering pending level shifter.
+**v1.4 Status: TEXT IS RENDERING!** Characters visible but blocky due to timing constraints.
 
-- **Font:** 8×8 bitmap font, 95 printable ASCII characters (space through ~)
+- **Font:** 8×8 bitmap font, 95 printable ASCII characters
 - **Framebuffer:** 31,500 bytes (720×350 pixels, 1-bit monochrome)
-- **Current limitation:** Shows text location (horizontal lines) but not individual characters
-- **Next step:** Pixel-level bit-banging with clean 5V signals (SN74LS245N required)
+- **Current achievement:** 270 pixels/line (3-bit sampling per byte)
+- **Rendering method:** Samples bits 7, 4, and 0 from each byte
+- **Result:** Readable but blocky text, some vertical strokes missing
+- **Example:** "KAYPRO" displays as "CAPCCD" (K→C due to missing strokes)
+
+### Technical Limitations Discovered
+
+- **720 pixels in 45.25 µs = 62.67 ns per pixel**
+- **At 600 MHz = only 37 CPU cycles per pixel**
+- **Reality:** Even optimized C code needs >37 cycles per pixel
+- **Solution:** 3-bit sampling gives readable text at 270 pixels
+- **Future:** True 720-pixel rendering requires DMA or dedicated hardware (FPGA)
 
 ## Version History
+
+### v1.4 - Text Rendering Breakthrough! (2026-04-06)
+- ✅ **TEXT IS VISIBLE ON CRT!** Blocky but readable
+- ✅ 270 pixels per line achieved (3 samples per byte)
+- ✅ Character shapes recognizable (some strokes missing)
+- ✅ "KAYPRO CRT" displays (reads as "CAPCCD DRT" due to sampling limitations)
+- ✅ Multiple lines of text working
+- ⚠️ Full 720 pixel rendering proved impossible in ISR (timing constraints)
+- 📝 Next: Monitor recapping, consider DMA/FPGA for full resolution
+
+### v1.3 - Level Shifter Integration (2026-04-06)
+- ✅ SN74LS245N installed and working
+- ✅ Clean 5V signals achieved
+- ✅ Significantly improved stability
+- ✅ Patterns 0-7 crystal clear
+- ✅ Enabled text rendering attempts
 
 ### v1.2 - Text Rendering Engine (2026-04-05)
 - ✅ 8×8 bitmap font loaded into PROGMEM
@@ -167,15 +195,23 @@ Vertical:
 
 ## Roadmap
 
+### Completed
 - [x] v1.0 - Stable sync signals and basic patterns
 - [x] v1.1 - Convergence test patterns
 - [x] v1.2 - Text rendering infrastructure
-- [ ] v1.3 - Pixel-level text rendering (with SN74LS245N)
-- [ ] v1.4 - ASCII art and banner displays
-- [ ] v2.0 - Serial terminal mirror
-- [ ] v2.1 - Live data dashboard (weather, system stats)
-- [ ] v2.2 - Graphics primitives (lines, rectangles, circles)
-- [ ] v3.0 - DMA-based video output for full-speed rendering
+- [x] v1.3 - Level shifter integration (SN74LS245N)
+- [x] v1.4 - **Partial text rendering achieved! (270 pixels)**
+
+### Next Steps
+- [ ] **Hardware:** Recap monitor (improve stability, fix deflection issues)
+- [ ] v1.5 - Improve character sampling (5-bit sampling for better definition)
+- [ ] v1.6 - Optimize timing for more pixels per line
+
+### Future (Requires Hardware Upgrade)
+- [ ] v2.0 - DMA-based rendering (true 720 pixels)
+- [ ] v2.1 - FPGA video generator (perfect timing)
+- [ ] v2.2 - Serial terminal mirror
+- [ ] v3.0 - Live data dashboard
 
 ## Troubleshooting
 
