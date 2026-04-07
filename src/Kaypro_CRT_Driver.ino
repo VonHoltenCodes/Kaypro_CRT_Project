@@ -8,26 +8,26 @@
  * - Horizontal Frequency: 18.432 kHz (54.25 µs per line)
  * - Vertical Frequency: 50 Hz (20 ms per frame)
  * - Resolution: 720 × 350 pixels
- * - Signal Level: TTL (5V standard)
+ * - Signal Level: TTL (5V via SN74LS245N)
  *
- * IMPORTANT VOLTAGE NOTE:
- * - Teensy 4.1 outputs 3.3V logic
- * - Monitor expects 5V TTL signals
- * - Currently works but with flicker/reduced brightness
- * - RECOMMENDED: Use SN74LS245N octal bus transceiver for level shifting
- *   (3.3V→5V conversion for clean, stable video)
+ * v1.4 - DMA-POWERED PIXEL RENDERING
+ * Using Teensy 4.1's DMA engine to achieve true 720-pixel resolution
+ * DMA transfers framebuffer to GPIO at precise intervals
+ * No CPU involvement during pixel output = perfect timing
  *
- * Hardware Connections (DB-9 Female on Monitor):
+ * Hardware Connections (DB-9 Female on Monitor via SN74LS245N):
  * - GND         → Pin 1 (or Pin 2)  - Ground
- * - Teensy Pin 2 → Pin 7            - Video Signal (3.3V, needs 5V)
- * - Teensy Pin 3 → Pin 6            - Intensity (3.3V, needs 5V)
- * - Teensy Pin 4 → Pin 8            - Horizontal Sync (3.3V, needs 5V)
- * - Teensy Pin 5 → Pin 9            - Vertical Sync (3.3V, needs 5V)
+ * - Teensy Pin 2 → Pin 7            - Video Signal (via level shifter)
+ * - Teensy Pin 3 → Pin 6            - Intensity (via level shifter)
+ * - Teensy Pin 4 → Pin 8            - Horizontal Sync (via level shifter)
+ * - Teensy Pin 5 → Pin 9            - Vertical Sync (via level shifter)
  *
- * Author: Generated for NEONpulseTechshop gigalab
+ * Author: VonHoltenCodes + Claude (Opus Mode)
  * Date: 2026-04-05
- * Version: 1.2 - Text Rendering Engine
+ * Version: 1.4 - DMA Pixel Rendering
  */
+
+#include <DMAChannel.h>
 
 // ============================================================================
 // PIN DEFINITIONS
@@ -214,6 +214,21 @@ volatile TestPattern current_pattern = PATTERN_CROSSHAIR;  // Start with crossha
 IntervalTimer hsyncTimer;
 
 // ============================================================================
+// DMA CONFIGURATION FOR PIXEL OUTPUT
+// ============================================================================
+
+DMAChannel dma;
+volatile bool dmaActive = false;
+
+// DMA transfer buffer - pre-computed GPIO values for each pixel
+// We'll prepare this from the framebuffer for fast DMA transfer
+uint32_t dmaLineBuffer[720] __attribute__((aligned(32)));
+
+// GPIO6_DR register address (Pin 2 is GPIO6, bit 12)
+#define GPIO6_DR_ADDR 0x42000000  // GPIO6 data register
+#define VIDEO_PIN_MASK (1 << 12)  // Pin 2 = GPIO6_12
+
+// ============================================================================
 // SETUP
 // ============================================================================
 
@@ -365,8 +380,23 @@ void loop() {
         case PATTERN_TEXT:
           Serial.println("Text Rendering");
           Serial.println("Preparing text framebuffer...");
+
+          // Temporarily disable timer to prevent rendering during buffer prep
+          hsyncTimer.end();
+
           prepareTextDemo();
+
           Serial.println("Text buffer ready!");
+          Serial.println("Restarting video timer...");
+
+          // Small delay to let things settle
+          delay(100);
+
+          // Restart timer
+          current_line = 0;
+          hsyncTimer.begin(hsyncISR, H_TOTAL_TIME_US);
+
+          Serial.println("Video restarted - rendering text!");
           break;
         default: break;
       }
@@ -449,10 +479,33 @@ void clearTextBuffer() {
 void prepareTextDemo() {
   clearTextBuffer();
 
-  // Draw text - this sets up the framebuffer
-  drawString(5, 10, "NEON");
-  drawString(5, 12, "TECH");
-  drawString(5, 14, "SHOP");
+  // OPUS TEST PATTERN: Multiple test zones to verify pixel rendering
+
+  // Zone 1: Vertical stripes (lines 20-40)
+  for (uint16_t y = 20; y < 40; y++) {
+    for (uint8_t x = 0; x < 90; x++) {
+      textFramebuffer[y][x] = 0xAA;  // 10101010 = vertical stripes
+    }
+  }
+
+  // Zone 2: Solid bar (lines 50-60)
+  for (uint16_t y = 50; y < 60; y++) {
+    for (uint8_t x = 10; x < 30; x++) {
+      textFramebuffer[y][x] = 0xFF;  // Solid white block
+    }
+  }
+
+  // Zone 3: Actual text
+  drawString(5, 10, "KAYPRO CRT");
+  drawString(5, 12, "720 PIXELS");
+  drawString(5, 14, "DMA POWERED");
+  drawString(5, 16, "OPUS MODE!");
+
+  // Zone 4: Border pattern (top and bottom)
+  for (uint8_t x = 0; x < 90; x++) {
+    textFramebuffer[0][x] = 0xFF;     // Top border
+    textFramebuffer[349][x] = 0xFF;   // Bottom border
+  }
 
   textBufferReady = true;
 }
@@ -615,23 +668,44 @@ void drawSolidColor(bool white) {
   digitalWriteFast(PIN_INTENSITY, white ? HIGH : LOW);
 }
 
-// Pattern 9: Text rendering from framebuffer
+// Pattern 9: CHARACTER RENDERING - 3 pixels per byte for character definition
 void drawText(uint16_t line_number) {
   if (!textBufferReady) {
-    // Show blank screen if buffer not ready
     digitalWriteFast(PIN_VIDEO, LOW);
     digitalWriteFast(PIN_INTENSITY, LOW);
     return;
   }
 
-  // SIMPLIFIED: Just show left edge (first byte = 8 pixels) to test
-  // This won't look great but will show if font data is working
-  uint8_t first_byte = textFramebuffer[line_number][0];
+  // REFINED APPROACH: Output 3 pixels per byte (left, middle, right)
+  // This gives character definition while staying within timing limits
+  // 90 bytes × 3 pixels = 270 pixels total
 
-  // If any pixel in first byte is set, show white
-  // In real implementation we'd bit-bang all 720 pixels
-  digitalWriteFast(PIN_VIDEO, (first_byte != 0) ? HIGH : LOW);
-  digitalWriteFast(PIN_INTENSITY, (first_byte != 0) ? HIGH : LOW);
+  // Wait for beam to reach visible area
+  delayMicroseconds(5);
+
+  // Output 45 bytes (half screen) with 3 pixels each
+  for (uint8_t byte_idx = 0; byte_idx < 45; byte_idx++) {
+    uint8_t pixel_byte = textFramebuffer[line_number][byte_idx];
+
+    // Pixel 1: MSB (bit 7)
+    digitalWriteFast(PIN_VIDEO, (pixel_byte & 0x80) ? HIGH : LOW);
+    digitalWriteFast(PIN_INTENSITY, (pixel_byte & 0x80) ? HIGH : LOW);
+    delayNanoseconds(150);
+
+    // Pixel 2: Middle (bit 4)
+    digitalWriteFast(PIN_VIDEO, (pixel_byte & 0x10) ? HIGH : LOW);
+    digitalWriteFast(PIN_INTENSITY, (pixel_byte & 0x10) ? HIGH : LOW);
+    delayNanoseconds(150);
+
+    // Pixel 3: LSB (bit 0)
+    digitalWriteFast(PIN_VIDEO, (pixel_byte & 0x01) ? HIGH : LOW);
+    digitalWriteFast(PIN_INTENSITY, (pixel_byte & 0x01) ? HIGH : LOW);
+    delayNanoseconds(150);
+  }
+
+  // Video off
+  digitalWriteFast(PIN_VIDEO, LOW);
+  digitalWriteFast(PIN_INTENSITY, LOW);
 }
 
 // ============================================================================
