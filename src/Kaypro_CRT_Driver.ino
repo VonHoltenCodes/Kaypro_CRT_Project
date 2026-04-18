@@ -51,7 +51,8 @@
 #define H_ACTIVE_TIME_US   (H_TOTAL_TIME_US - H_FRONT_PORCH_US - H_SYNC_PULSE_US - H_BACK_PORCH_US)
 
 // Vertical timing (one frame)
-#define V_TOTAL_LINES      370      // Total lines per frame (including blanking)
+// Using EVEN line count (368) to prevent interlace interpretation
+#define V_TOTAL_LINES      368      // Even number to force progressive scan
 #define V_VISIBLE_LINES    350      // Active video lines
 #define V_FRONT_PORCH      3        // Lines after video before VSync
 #define V_SYNC_PULSE       3        // VSync pulse width in lines
@@ -479,32 +480,33 @@ void clearTextBuffer() {
 void prepareTextDemo() {
   clearTextBuffer();
 
-  // OPUS TEST PATTERN: Multiple test zones to verify pixel rendering
+  // FULL DEMO - Now that horizontal works and interlacing is fixed!
+  // Let's show off what we've achieved
 
-  // Zone 1: Vertical stripes (lines 20-40)
-  for (uint16_t y = 20; y < 40; y++) {
+  // Title section with box
+  for (uint8_t x = 10; x < 80; x++) {
+    textFramebuffer[40][x] = 0xFF;   // Top border
+    textFramebuffer[120][x] = 0xFF;  // Bottom border
+  }
+
+  drawString(15, 8, "KAYPRO CRT");
+  drawString(15, 10, "RESTORED!");
+
+  // Info section
+  drawString(5, 18, "Teensy 4.1 Driver v1.5");
+  drawString(5, 20, "368 Lines Non-Interlaced");
+  drawString(5, 22, "450 Pixels @ 50Hz");
+
+  // Credits
+  drawString(5, 28, "Built by:");
+  drawString(5, 30, "VonHoltenCodes");
+  drawString(5, 32, "+ Claude Opus");
+
+  // Test pattern at bottom
+  for (uint16_t y = 280; y < 290; y++) {
     for (uint8_t x = 0; x < 90; x++) {
-      textFramebuffer[y][x] = 0xAA;  // 10101010 = vertical stripes
+      textFramebuffer[y][x] = (x % 2) ? 0xAA : 0x55;  // Checkerboard
     }
-  }
-
-  // Zone 2: Solid bar (lines 50-60)
-  for (uint16_t y = 50; y < 60; y++) {
-    for (uint8_t x = 10; x < 30; x++) {
-      textFramebuffer[y][x] = 0xFF;  // Solid white block
-    }
-  }
-
-  // Zone 3: Actual text
-  drawString(5, 10, "KAYPRO CRT");
-  drawString(5, 12, "720 PIXELS");
-  drawString(5, 14, "DMA POWERED");
-  drawString(5, 16, "OPUS MODE!");
-
-  // Zone 4: Border pattern (top and bottom)
-  for (uint8_t x = 0; x < 90; x++) {
-    textFramebuffer[0][x] = 0xFF;     // Top border
-    textFramebuffer[349][x] = 0xFF;   // Bottom border
   }
 
   textBufferReady = true;
@@ -668,7 +670,7 @@ void drawSolidColor(bool white) {
   digitalWriteFast(PIN_INTENSITY, white ? HIGH : LOW);
 }
 
-// Pattern 9: CHARACTER RENDERING - 3 pixels per byte for character definition
+// Pattern 9: FULL SCREEN RENDERING - Fill entire scan line
 void drawText(uint16_t line_number) {
   if (!textBufferReady) {
     digitalWriteFast(PIN_VIDEO, LOW);
@@ -676,34 +678,36 @@ void drawText(uint16_t line_number) {
     return;
   }
 
-  // REFINED APPROACH: Output 3 pixels per byte (left, middle, right)
-  // This gives character definition while staying within timing limits
-  // 90 bytes × 3 pixels = 270 pixels total
+  // FULL WIDTH: Output ALL 90 bytes with 5-bit sampling
+  // This fills the entire screen width to eliminate double imaging
+  // 90 bytes × 5 samples = 450 pixels across full width
 
-  // Wait for beam to reach visible area
-  delayMicroseconds(5);
+  // Small delay for beam positioning
+  delayMicroseconds(4);
 
-  // Output 45 bytes (half screen) with 3 pixels each
-  for (uint8_t byte_idx = 0; byte_idx < 45; byte_idx++) {
+  // Render ALL 90 bytes to fill screen
+  for (uint8_t byte_idx = 0; byte_idx < 90; byte_idx++) {
     uint8_t pixel_byte = textFramebuffer[line_number][byte_idx];
 
-    // Pixel 1: MSB (bit 7)
-    digitalWriteFast(PIN_VIDEO, (pixel_byte & 0x80) ? HIGH : LOW);
-    digitalWriteFast(PIN_INTENSITY, (pixel_byte & 0x80) ? HIGH : LOW);
-    delayNanoseconds(150);
+    // 5-bit sampling for better character definition
+    // This captures more vertical strokes
+    digitalWriteFast(PIN_VIDEO, (pixel_byte & 0x80) ? HIGH : LOW);  // Bit 7
+    delayNanoseconds(80);
 
-    // Pixel 2: Middle (bit 4)
-    digitalWriteFast(PIN_VIDEO, (pixel_byte & 0x10) ? HIGH : LOW);
-    digitalWriteFast(PIN_INTENSITY, (pixel_byte & 0x10) ? HIGH : LOW);
-    delayNanoseconds(150);
+    digitalWriteFast(PIN_VIDEO, (pixel_byte & 0x40) ? HIGH : LOW);  // Bit 6
+    delayNanoseconds(80);
 
-    // Pixel 3: LSB (bit 0)
-    digitalWriteFast(PIN_VIDEO, (pixel_byte & 0x01) ? HIGH : LOW);
-    digitalWriteFast(PIN_INTENSITY, (pixel_byte & 0x01) ? HIGH : LOW);
-    delayNanoseconds(150);
+    digitalWriteFast(PIN_VIDEO, (pixel_byte & 0x20) ? HIGH : LOW);  // Bit 5
+    delayNanoseconds(80);
+
+    digitalWriteFast(PIN_VIDEO, (pixel_byte & 0x10) ? HIGH : LOW);  // Bit 4
+    delayNanoseconds(80);
+
+    digitalWriteFast(PIN_VIDEO, (pixel_byte & 0x02) ? HIGH : LOW);  // Bit 1
+    delayNanoseconds(80);
   }
 
-  // Video off
+  // Ensure video is off for HSync
   digitalWriteFast(PIN_VIDEO, LOW);
   digitalWriteFast(PIN_INTENSITY, LOW);
 }
