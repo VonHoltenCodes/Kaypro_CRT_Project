@@ -7,13 +7,14 @@ Drive vintage 1980s Kaypro monochrome CRT monitors with modern microcontrollers.
 
 ## Features
 
-- ✅ **Stable Sync Signals** - Hardware timer-based 18.432 kHz horizontal / 50 Hz vertical sync
-- ✅ **10 Test Patterns** - Convergence tools including crosshair, grid, circles, corners, borders
-- ✅ **TEXT RENDERING WORKING!** - Blocky but readable text on vintage CRT
+- ✅ **Rock Solid Sync** - 368 lines non-interlaced @ 50 Hz
+- ✅ **CLEAR TEXT RENDERING** - Full screen width, readable characters
+- ✅ **450 Pixels/Line** - 5-bit sampling for character definition
+- ✅ **10 Test Patterns** - Convergence tools, crosshair, grid, borders
 - ✅ **8×8 Bitmap Font** - 95 printable ASCII characters
-- ✅ **Serial Control** - Switch patterns via USB serial commands
-- ✅ **Level Shifted Signals** - Clean 5V TTL via SN74LS245N
-- ⚠️ **Partial Resolution** - 270 pixels/line achieved (full 720 not possible in ISR)
+- ✅ **Level Shifted to 5V** - Clean TTL signals via SN74LS245N
+- ✅ **Serial Control** - Live pattern switching via USB
+- 🏆 **Peak ISR Performance** - Maximum achievable without DMA
 
 ## Gallery
 
@@ -157,6 +158,16 @@ Vertical:
 - **Future:** True 720-pixel rendering requires DMA or dedicated hardware (FPGA)
 
 ## Version History
+
+### v1.5 - FULL SCREEN TEXT ACHIEVED! (2026-04-17)
+- ✅ **ROCK SOLID STABILITY** with recapped monitor
+- ✅ **CLEAR READABLE TEXT** across entire screen width
+- ✅ **450 pixels rendered** (90 bytes × 5-bit sampling)
+- ✅ **Fixed interlacing** with 368 even line count
+- ✅ **Full character definition** - K looks like K, not C!
+- ✅ **Vertical strokes visible** with improved sampling
+- 🔧 Monitor recapped + V-LIN/V-HOLD/V-SIZE adjusted
+- 📊 Peak ISR performance achieved
 
 ### v1.4 - Text Rendering Breakthrough! (2026-04-06)
 - ✅ **TEXT IS VISIBLE ON CRT!** Blocky but readable
